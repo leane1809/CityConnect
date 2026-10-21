@@ -1,0 +1,45 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Signalement urbain{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="{{ url_for('accueil') }}">Ville<span>Signal</span></a>
+    <nav>
+        <a href="{{ url_for('accueil') }}">Accueil</a>
+        <a href="{{ url_for('signaler') }}">Signaler un problème</a>
+        <a href="{{ url_for('suivi') }}">Suivi</a>
+        {% if session.get('agent_id') %}
+            <a href="{{ url_for('admin') }}">Espace agent</a>
+            <form class="nav-form" method="post" action="{{ url_for('deconnexion') }}">
+                <button class="nav-button" type="submit">Déconnexion</button>
+            </form>
+        {% else %}
+            <a href="{{ url_for('connexion') }}">Espace agent</a>
+        {% endif %}
+    </nav>
+</header>
+
+<main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for categorie, message in messages %}
+                <div class="alert {{ categorie }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</main>
+
+<footer>
+    <p>Projet universitaire — Groupe 13 — NTAKEU BAPIAH YVANNA LEANE</p>
+    <p>Plateforme de signalement citoyen des problèmes urbains.</p>
+</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

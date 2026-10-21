@@ -1,0 +1,46 @@
+
+{% extends "base.html" %}
+{% block title %}Suivi — VilleSignal{% endblock %}
+{% block content %}
+<section class="form-card">
+    <h1>Suivre un signalement</h1>
+    <p>Entre le code de suivi reçu après l'envoi de ton signalement.</p>
+    <form method="post" action="{{ url_for('suivi') }}">
+        <label for="code_suivi">Code de suivi</label>
+        <input id="code_suivi" name="code_suivi" value="{{ code }}" required placeholder="Ex. 7A2B9C3D4E5F">
+        <button class="button" type="submit">Rechercher</button>
+    </form>
+</section>
+
+{% if signalement %}
+<section class="form-card">
+    <p class="eyebrow">RÉFÉRENCE {{ signalement.code_suivi }}</p>
+    <h2>{{ signalement.categorie }} — {{ signalement.quartier }}</h2>
+    <p><strong>Adresse :</strong> {{ signalement.adresse }}</p>
+    <p><strong>Description :</strong> {{ signalement.description }}</p>
+    <p><strong>Date de création :</strong> {{ signalement.date_creation }}</p>
+    <p><strong>Statut actuel :</strong> <span class="tag">{{ signalement.statut }}</span></p>
+    {% if signalement.statut == 'rejeté' and signalement.motif_rejet %}
+        <p><strong>Motif du rejet :</strong> {{ signalement.motif_rejet }}</p>
+    {% endif %}
+    {% if signalement.photo %}
+        <img class="report-photo" src="{{ url_for('static', filename='uploads/' + signalement.photo) }}" alt="Photo du signalement">
+    {% endif %}
+
+    <h3>Historique des interventions</h3>
+    {% if interventions %}
+        <div class="timeline">
+        {% for i in interventions %}
+            <article>
+                <strong>{{ i.nouveau_statut }}</strong>
+                <p>{{ i.commentaire }}</p>
+                <small>{{ i.date_intervention }} — {{ i.agent }}</small>
+            </article>
+        {% endfor %}
+        </div>
+    {% else %}
+        <p>Aucune intervention n'a encore été enregistrée.</p>
+    {% endif %}
+</section>
+{% endif %}
+{% endblock %}

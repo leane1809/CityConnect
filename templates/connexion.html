@@ -1,0 +1,16 @@
+
+{% extends "base.html" %}
+{% block title %}Connexion agent — VilleSignal{% endblock %}
+{% block content %}
+<section class="form-card narrow">
+    <h1>Espace agent</h1>
+    <p>Connecte-toi avec les identifiants de démonstration ou ceux qui t'ont été attribués.</p>
+    <form method="post">
+        <label for="login">Identifiant</label>
+        <input id="login" name="login" autocomplete="username" required>
+        <label for="mot_de_passe">Mot de passe</label>
+        <input id="mot_de_passe" name="mot_de_passe" type="password" autocomplete="current-password" required>
+        <button class="button" type="submit">Se connecter</button>
+    </form>
+</section>
+{% endblock %}

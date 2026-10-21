@@ -1,0 +1,95 @@
+
+{% extends "base.html" %}
+{% block title %}Signaler un problème — VilleSignal{% endblock %}
+{% block content %}
+<section class="form-card">
+    <p class="eyebrow">PARTICIPATION CITOYENNE</p>
+    <h1>Signaler un problème urbain</h1>
+    <p>Décris clairement le problème. Les champs marqués * sont obligatoires.</p>
+
+    <form method="post" enctype="multipart/form-data" id="reportForm">
+        <label for="categorie_id">Catégorie *</label>
+        <select name="categorie_id" id="categorie_id" required>
+            <option value="">Choisir une catégorie</option>
+            {% for c in categories %}
+                <option value="{{ c.id }}" {% if request.form.get('categorie_id') == c.id|string %}selected{% endif %}>{{ c.nom }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="quartier_id">Quartier *</label>
+        <select name="quartier_id" id="quartier_id" required>
+            <option value="">Choisir un quartier</option>
+            {% for q in quartiers %}
+                <option value="{{ q.id }}" {% if request.form.get('quartier_id') == q.id|string %}selected{% endif %}>{{ q.nom }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="adresse">Adresse ou repère précis *</label>
+        <input name="adresse" id="adresse" maxlength="200" required value="{{ request.form.get('adresse', '') }}" placeholder="Ex. près du marché...">
+
+        <label for="description">Description du problème * <span id="counter">0/20 minimum</span></label>
+        <textarea name="description" id="description" minlength="20" maxlength="3000" rows="5" required placeholder="Expliquez le problème, son emplacement et ses conséquences...">{{ request.form.get('description', '') }}</textarea>
+
+        <label for="telephone">Téléphone du citoyen *</label>
+        <input name="telephone" id="telephone" type="tel" maxlength="25" required value="{{ request.form.get('telephone', '') }}" placeholder="+237 6XX XXX XXX">
+
+        <label for="photo">Photo (JPG, JPEG ou PNG ; moins de 2 Mo)</label>
+        <input type="file" name="photo" id="photo" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+        <img id="preview" class="preview" alt="Aperçu de la photo" hidden>
+        <p id="photoError" class="field-error" role="alert"></p>
+
+        <button class="button" type="submit">Envoyer le signalement</button>
+    </form>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const description = document.getElementById("description");
+const counter = document.getElementById("counter");
+const photo = document.getElementById("photo");
+const preview = document.getElementById("preview");
+const photoError = document.getElementById("photoError");
+
+function updateCounter() {
+    counter.textContent = `${description.value.trim().length}/20 minimum`;
+    counter.classList.toggle("valid", description.value.trim().length >= 20);
+}
+description.addEventListener("input", updateCounter);
+updateCounter();
+
+photo.addEventListener("change", () => {
+    preview.hidden = true;
+    preview.removeAttribute("src");
+    photoError.textContent = "";
+
+    const file = photo.files[0];
+    if (!file) return;
+
+    const allowed = ["image/jpeg", "image/png"];
+    if (!allowed.includes(file.type) ||
+        !/\.(jpe?g|png)$/i.test(file.name)) {
+        photoError.textContent = "Choisis une image JPG, JPEG ou PNG.";
+        photo.value = "";
+        return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+        photoError.textContent = "La photo doit faire moins de 2 Mo.";
+        photo.value = "";
+        return;
+    }
+
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+});
+
+document.getElementById("reportForm").addEventListener("submit", (event) => {
+    if (description.value.trim().length < 20) {
+        event.preventDefault();
+        description.setCustomValidity("La description doit contenir au moins 20 caractères.");
+        description.reportValidity();
+    } else {
+        description.setCustomValidity("");
+    }
+});
+</script>
+{% endblock %}
