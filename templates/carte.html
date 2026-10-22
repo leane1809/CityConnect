@@ -1,0 +1,232 @@
+
+{% extends "base.html" %}
+
+{% block title %}Carte des signalements — VilleSignal{% endblock %}
+
+{% block content %}
+<section class="form-card">
+    <p class="eyebrow">SUIVI CITOYEN</p>
+    <h1>Carte des signalements</h1>
+    <p>
+        Explore les problèmes urbains signalés et consulte leur emplacement,
+        leur catégorie et leur état de traitement.
+    </p>
+
+    <div class="map-filters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:20px 0;">
+        <div>
+            <label for="filtreCategorie">Catégorie</label>
+            <select id="filtreCategorie">
+                <option value="">Toutes les catégories</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="filtreQuartier">Quartier</label>
+            <select id="filtreQuartier">
+                <option value="">Tous les quartiers</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="filtreStatut">Statut</label>
+            <select id="filtreStatut">
+                <option value="">Tous les statuts</option>
+                <option value="nouveau">Nouveau</option>
+                <option value="en cours">En cours</option>
+                <option value="résolu">Résolu</option>
+            </select>
+        </div>
+    </div>
+
+    <p id="mapMessage" role="status" aria-live="polite">
+        Chargement des signalements...
+    </p>
+
+    <div id="publicMap"
+         role="application"
+         aria-label="Carte des signalements urbains"
+         style="height:480px;width:100%;border-radius:12px;margin:16px 0;">
+    </div>
+
+    <p id="mapCount">0 signalement affiché</p>
+
+    <div>
+        <strong>Légende :</strong>
+        <span style="margin-left:10px;">🔵 Nouveau</span>
+        <span style="margin-left:10px;">🟠 En cours</span>
+        <span style="margin-left:10px;">🟢 Résolu</span>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+>
+
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+></script>
+
+<script>
+const mapMessage = document.getElementById("mapMessage");
+const mapCount = document.getElementById("mapCount");
+const filtreCategorie = document.getElementById("filtreCategorie");
+const filtreQuartier = document.getElementById("filtreQuartier");
+const filtreStatut = document.getElementById("filtreStatut");
+
+const carte = L.map("publicMap").setView([4.0511, 9.7679], 12);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(carte);
+
+let tousLesSignalements = [];
+let marqueurs = [];
+
+function couleurStatut(statut) {
+    if (statut === "résolu") return "#198754";
+    if (statut === "en cours") return "#fd7e14";
+    return "#0d6efd";
+}
+
+function ajouterOptions(selecteur, valeurs) {
+    [...new Set(valeurs.filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, "fr"))
+        .forEach(valeur => {
+            const option = document.createElement("option");
+            option.value = valeur;
+            option.textContent = valeur;
+            selecteur.appendChild(option);
+        });
+}
+
+function creerPopup(signalement) {
+    // Construire le contenu avec textContent évite d'interpréter
+    // les descriptions saisies par les citoyens comme du HTML.
+    const contenu = document.createElement("div");
+
+    const titre = document.createElement("strong");
+    titre.textContent = signalement.categorie;
+    contenu.appendChild(titre);
+
+    const description = document.createElement("p");
+    description.textContent = signalement.description;
+    contenu.appendChild(description);
+
+    const quartier = document.createElement("p");
+    quartier.textContent = "Quartier : " + signalement.quartier;
+    contenu.appendChild(quartier);
+
+    const adresse = document.createElement("p");
+    adresse.textContent = "Adresse : " + signalement.adresse;
+    contenu.appendChild(adresse);
+
+    const statut = document.createElement("p");
+    statut.textContent = "Statut : " + signalement.statut;
+    contenu.appendChild(statut);
+
+    const date = document.createElement("p");
+    date.textContent = "Date : " + signalement.date_creation;
+    contenu.appendChild(date);
+
+    return contenu;
+}
+
+function afficherSignalements() {
+    marqueurs.forEach(marqueur => carte.removeLayer(marqueur));
+    marqueurs = [];
+
+    const categorieChoisie = filtreCategorie.value;
+    const quartierChoisi = filtreQuartier.value;
+    const statutChoisi = filtreStatut.value;
+
+    const filtres = tousLesSignalements.filter(s => {
+        return (!categorieChoisie || s.categorie === categorieChoisie)
+            && (!quartierChoisi || s.quartier === quartierChoisi)
+            && (!statutChoisi || s.statut === statutChoisi);
+    });
+
+    filtres.forEach(s => {
+        const latitude = Number(s.latitude);
+        const longitude = Number(s.longitude);
+
+        if (
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude) ||
+            latitude < -90 || latitude > 90 ||
+            longitude < -180 || longitude > 180
+        ) {
+            return;
+        }
+
+        const marqueur = L.circleMarker([latitude, longitude], {
+            radius: 9,
+            color: couleurStatut(s.statut),
+            fillColor: couleurStatut(s.statut),
+            fillOpacity: 0.8,
+            weight: 2
+        }).addTo(carte);
+
+        marqueur.bindPopup(creerPopup(s));
+        marqueurs.push(marqueur);
+    });
+
+    mapCount.textContent =
+        `${marqueurs.length} signalement(s) affiché(s)`;
+
+    if (marqueurs.length > 0) {
+        const groupe = L.featureGroup(marqueurs);
+        carte.fitBounds(groupe.getBounds(), { padding: [30, 30], maxZoom: 16 });
+        mapMessage.textContent = "Signalements chargés sur la carte.";
+    } else if (tousLesSignalements.length === 0) {
+        mapMessage.textContent =
+            "Aucun signalement géolocalisé pour le moment. " +
+            "Les nouveaux signalements avec une position apparaîtront ici.";
+    } else {
+        mapMessage.textContent =
+            "Aucun signalement ne correspond à ces filtres.";
+    }
+}
+
+async function chargerSignalements() {
+    try {
+        const reponse = await fetch("/api/carte-signalements");
+
+        if (!reponse.ok) {
+            throw new Error("Erreur HTTP " + reponse.status);
+        }
+
+        tousLesSignalements = await reponse.json();
+
+        ajouterOptions(
+            filtreCategorie,
+            tousLesSignalements.map(s => s.categorie)
+        );
+
+        ajouterOptions(
+            filtreQuartier,
+            tousLesSignalements.map(s => s.quartier)
+        );
+
+        afficherSignalements();
+    } catch (erreur) {
+        console.error("Chargement de la carte impossible :", erreur);
+        mapMessage.textContent =
+            "Impossible de charger les signalements. Vérifie que le serveur fonctionne.";
+    }
+}
+
+filtreCategorie.addEventListener("change", afficherSignalements);
+filtreQuartier.addEventListener("change", afficherSignalements);
+filtreStatut.addEventListener("change", afficherSignalements);
+
+chargerSignalements();
+</script>
+{% endblock %}

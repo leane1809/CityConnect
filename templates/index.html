@@ -1,11 +1,13 @@
 
 {% extends "base.html" %}
 {% block title %}Accueil — VilleSignal{% endblock %}
+
 {% block content %}
 <section class="hero">
     <p class="eyebrow">ENSEMBLE POUR NOTRE VILLE</p>
     <h1>Un problème dans votre quartier ?<br>Faisons-le savoir.</h1>
     <p>Signalez les problèmes urbains et suivez leur prise en charge par les services compétents.</p>
+
     <div class="actions">
         <a class="button" href="{{ url_for('signaler') }}">Faire un signalement</a>
         <a class="button secondary" href="{{ url_for('suivi') }}">Suivre un signalement</a>
@@ -13,13 +15,23 @@
 </section>
 
 <section class="stats">
-    <article><strong>{{ total }}</strong><span>Signalements publics</span></article>
-    <article><strong>{{ resolus }}</strong><span>Problèmes résolus</span></article>
-    <article><strong>{{ nb_categories }}</strong><span>Catégories</span></article>
+    <article>
+        <strong>{{ total }}</strong>
+        <span>Signalements publics</span>
+    </article>
+    <article>
+        <strong>{{ resolus }}</strong>
+        <span>Problèmes résolus</span>
+    </article>
+    <article>
+        <strong>{{ nb_categories }}</strong>
+        <span>Catégories</span>
+    </article>
 </section>
 
 <section>
     <h2>Signalements récents</h2>
+
     {% if signalements %}
         <div class="report-grid">
         {% for s in signalements %}
@@ -28,15 +40,63 @@
                     <span class="tag">{{ s.categorie }}</span>
                     <span class="status">{{ s.statut }}</span>
                 </div>
+
                 <h3>{{ s.quartier }} — {{ s.adresse }}</h3>
                 <p>{{ s.description }}</p>
+
                 <small>Référence : {{ s.code_suivi }}</small>
-                <p><a href="{{ url_for('suivi', code=s.code_suivi) }}">Voir le suivi →</a></p>
+
+                <p>
+                    <a href="{{ url_for('suivi', code=s.code_suivi) }}">
+                        Voir le suivi →
+                    </a>
+                </p>
+
+                <div class="support-section">
+                    <p>
+                        <strong>{{ s.nb_soutiens }}</strong>
+                        personne(s) soutiennent ce signalement.
+                    </p>
+
+                    <form
+                        method="POST"
+                        action="{{ url_for(
+                            'soutenir_signalement',
+                            signalement_id=s.id
+                        ) }}"
+                    >
+                        <input
+                            type="hidden"
+                            name="csrf_token"
+                            value="{{ csrf_token() }}"
+                        >
+
+                        <label for="telephone-soutien-{{ s.id }}">
+                            Ton numéro de téléphone
+                        </label>
+
+                        <input
+                            type="tel"
+                            id="telephone-soutien-{{ s.id }}"
+                            name="telephone_soutien"
+                            placeholder="Ex. : 6XXXXXXXX"
+                            required
+                            minlength="6"
+                            maxlength="20"
+                        >
+
+                        <button type="submit" class="button">
+                            Moi aussi !
+                        </button>
+                    </form>
+                </div>
             </article>
         {% endfor %}
         </div>
     {% else %}
-        <p class="empty">Aucun signalement pour le moment. Soyez le premier à signaler un problème.</p>
+        <p class="empty">
+            Aucun signalement pour le moment. Soyez le premier à signaler un problème.
+        </p>
     {% endif %}
 </section>
 {% endblock %}

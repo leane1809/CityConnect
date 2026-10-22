@@ -138,18 +138,34 @@ def enregistrer_photo(fichier):
 @app.route("/")
 def accueil():
     with get_db() as db:
-        signalements = db.execute("""
-            SELECT s.id, s.description, s.adresse, s.statut,
-                   s.date_creation, s.code_suivi,
-                   c.nom AS categorie, q.nom AS quartier
-            FROM signalements s
-            JOIN categories c ON c.id = s.categorie_id
-            JOIN quartiers q ON q.id = s.quartier_id
-            WHERE s.statut != 'rejeté'
-            ORDER BY s.date_creation DESC
-            LIMIT 20
-        """).fetchall()
-
+        signalements = db.execute("""SELECT
+            s.id,
+            s.description,
+            s.adresse,
+            s.statut,
+            s.date_creation,
+            s.code_suivi,
+            c.nom AS categorie,
+            q.nom AS quartier,
+            COUNT(st.id) AS nb_soutiens
+        FROM signalements s
+        JOIN categories c ON c.id = s.categorie_id
+        JOIN quartiers q ON q.id = s.quartier_id
+        LEFT JOIN soutiens st ON st.signalement_id = s.id
+        WHERE s.statut != 'rejeté'
+        GROUP BY
+            s.id,
+            s.description,
+            s.adresse,
+            s.statut,
+            s.date_creation,
+            s.code_suivi,
+            c.nom,
+            q.nom
+        ORDER BY s.date_creation DESC
+        LIMIT 20
+    """).fetchall()
+        
         categories = db.execute(
             "SELECT COUNT(*) FROM categories"
         ).fetchone()[0]
@@ -171,7 +187,50 @@ def accueil():
     )
 
 
+@app.route("/signalement/<int:signalement_id>/moi-aussi", methods=["POST"])
+def soutenir_signalement(signalement_id):
+    telephone = request.form.get("telephone_soutien", "").strip()
+
+    # Normaliser le numéro pour limiter les doublons de format.
+    telephone_normalise = re.sub(r"\D", "", telephone)
+
+    if not 6 <= len(telephone_normalise) <= 15:
+        flash("Entre un numéro de téléphone valide.", "danger")
+        return redirect(url_for("accueil"))
+
+    with get_db() as db:
+        signalement = db.execute("""
+            SELECT id
+            FROM signalements
+            WHERE id = ? AND statut != 'rejeté'
+        """, (signalement_id,)).fetchone()
+
+        if not signalement:
+            abort(404)
+
+        try:
+            db.execute("""
+                INSERT INTO soutiens (
+                    signalement_id,
+                    telephone_citoyen
+                )
+                VALUES (?, ?)
+            """, (signalement_id, telephone_normalise))
+
+            flash("Merci ! Ton soutien a été enregistré.", "success")
+
+        except sqlite3.IntegrityError:
+            flash(
+                "Ce numéro a déjà soutenu ce signalement.",
+                "warning"
+            )
+
+    return redirect(url_for("accueil"))
+
+
+
 @app.route("/signaler", methods=["GET", "POST"])
+
 def signaler():
     with get_db() as db:
         categories = db.execute(
@@ -187,92 +246,162 @@ def signaler():
         description = request.form.get("description", "").strip()
         adresse = request.form.get("adresse", "").strip()
         telephone = request.form.get("telephone", "").strip()
-        photo = request.files.get("photo")
+
+        # Coordonnées facultatives : elles seront renseignées
+        # grâce à la carte dans le formulaire.
+        latitude_form = request.form.get("latitude", "").strip()
+        longitude_form = request.form.get("longitude", "").strip()
+
+        fichier = request.files.get("photo")
+
+        def afficher_formulaire():
+            return render_template(
+                "signaler.html",
+                categories=categories,
+                quartiers=quartiers
+            )
 
         if not all([
             categorie_id, quartier_id, description,
             adresse, telephone
         ]):
-            flash("Tous les champs obligatoires doivent être remplis.", "danger")
-            return render_template(
-                "signaler.html", categories=categories, quartiers=quartiers
+            flash(
+                "Tous les champs obligatoires doivent être remplis.",
+                "danger"
             )
+            return afficher_formulaire()
 
         if len(description) < 20:
-            flash("La description doit contenir au moins 20 caractères.", "danger")
-            return render_template(
-                "signaler.html", categories=categories, quartiers=quartiers
+            flash(
+                "La description doit contenir au moins 20 caractères.",
+                "danger"
             )
+            return afficher_formulaire()
 
         if not re.fullmatch(r"[0-9+(). \-]{6,25}", telephone):
             flash("Le numéro de téléphone n'est pas valide.", "danger")
-            return render_template(
-                "signaler.html", categories=categories, quartiers=quartiers
-            )
+            return afficher_formulaire()
 
+        # Vérifier que la catégorie et le quartier existent.
         with get_db() as db:
             categorie_valide = db.execute(
-                "SELECT id FROM categories WHERE id = ?", (categorie_id,)
+                "SELECT id FROM categories WHERE id = ?",
+                (categorie_id,)
             ).fetchone()
+
             quartier_valide = db.execute(
-                "SELECT id FROM quartiers WHERE id = ?", (quartier_id,)
+                "SELECT id FROM quartiers WHERE id = ?",
+                (quartier_id,)
             ).fetchone()
 
         if not categorie_valide or not quartier_valide:
-            flash("La catégorie ou le quartier sélectionné est invalide.", "danger")
-            return render_template(
-                "signaler.html", categories=categories, quartiers=quartiers
+            flash(
+                "La catégorie ou le quartier sélectionné est invalide.",
+                "danger"
             )
+            return afficher_formulaire()
 
+        # Vérifier les coordonnées GPS si elles sont fournies.
+        latitude = None
+        longitude = None
+
+        if latitude_form or longitude_form:
+            try:
+                latitude = float(latitude_form)
+                longitude = float(longitude_form)
+
+                if not (
+                    -90 <= latitude <= 90
+                    and -180 <= longitude <= 180
+                ):
+                    raise ValueError
+            except (ValueError, TypeError):
+                flash(
+                    "La position GPS est invalide. "
+                    "Sélectionne un point sur la carte.",
+                    "danger"
+                )
+                return afficher_formulaire()
+
+        # Enregistrer la photo, si elle existe.
         photo_nom = None
-
-        fichier = request.files.get("photo")
 
         if fichier and fichier.filename:
             if len(fichier.read()) > 2 * 1024 * 1024:
                 flash("La photo ne doit pas dépasser 2 Mo.", "danger")
-                return redirect(url_for("signaler"))
+                return afficher_formulaire()
 
-        fichier.stream.seek(0)
+            fichier.stream.seek(0)
 
-        try:
-            photo_nom = enregistrer_photo(fichier)
-        except ValueError as erreur:
-            flash(str(erreur), "danger")
-            return redirect(url_for("signaler"))
+            try:
+                photo_nom = enregistrer_photo(fichier)
+            except ValueError as erreur:
+                flash(str(erreur), "danger")
+                return afficher_formulaire()
 
-        code_suivi = secrets.token_urlsafe(8).replace("-", "").replace("_", "")[:12].upper()
+        code_suivi = (
+            secrets.token_urlsafe(8)
+            .replace("-", "")
+            .replace("_", "")[:12]
+            .upper()
+        )
 
         try:
             with get_db() as db:
                 curseur = db.execute("""
                     INSERT INTO signalements (
-                        categorie_id, quartier_id, description,
-                        photo, adresse, telephone_citoyen, code_suivi
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        categorie_id,
+                        quartier_id,
+                        description,
+                        photo,
+                        adresse,
+                        telephone_citoyen,
+                        code_suivi,
+                        latitude,
+                        longitude
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    int(categorie_id), int(quartier_id), description,
-                    photo_nom, adresse, telephone, code_suivi
+                    int(categorie_id),
+                    int(quartier_id),
+                    description,
+                    photo_nom,
+                    adresse,
+                    telephone,
+                    code_suivi,
+                    latitude,
+                    longitude
                 ))
+
                 signalement_id = curseur.lastrowid
+
         except sqlite3.Error:
             if photo_nom:
                 (UPLOAD_DIR / photo_nom).unlink(missing_ok=True)
-            app.logger.exception("Erreur lors de l'enregistrement du signalement")
-            flash("Impossible d'enregistrer le signalement. Réessaie.", "danger")
-            return render_template(
-                "signaler.html", categories=categories, quartiers=quartiers
+
+            app.logger.exception(
+                "Erreur lors de l'enregistrement du signalement"
             )
+
+            flash(
+                "Impossible d'enregistrer le signalement. Réessaie.",
+                "danger"
+            )
+            return afficher_formulaire()
 
         flash(
             f"Signalement enregistré ! Ton code de suivi est : {code_suivi}",
             "success"
         )
+
         return redirect(url_for("suivi", code=code_suivi))
 
     return render_template(
-        "signaler.html", categories=categories, quartiers=quartiers
+        "signaler.html",
+        categories=categories,
+        quartiers=quartiers
     )
+
 
 
 @app.route("/suivi", methods=["GET", "POST"])
@@ -434,62 +563,169 @@ def ajouter_intervention(signalement_id):
     return redirect(url_for("admin"))
 
 
+
 @app.route("/api/statistiques")
 def api_statistiques():
     with get_db() as db:
+        # 1. Signalements par catégorie (hors signalements rejetés)
         par_categorie = db.execute("""
             SELECT c.nom AS categorie, COUNT(s.id) AS total
             FROM categories c
             LEFT JOIN signalements s
-                ON s.categorie_id = c.id AND s.statut != 'rejeté'
+                ON s.categorie_id = c.id
+                AND s.statut != 'rejeté'
             GROUP BY c.id, c.nom
             ORDER BY total DESC
         """).fetchall()
 
+        # 2. Signalements par quartier
         par_quartier = db.execute("""
             SELECT q.nom AS quartier, COUNT(s.id) AS total
             FROM quartiers q
             LEFT JOIN signalements s
-                ON s.quartier_id = q.id AND s.statut != 'rejeté'
+                ON s.quartier_id = q.id
+                AND s.statut != 'rejeté'
             GROUP BY q.id, q.nom
             ORDER BY total DESC
         """).fetchall()
 
+        # 3. Signalements nouveaux ou en cours depuis au moins 7 jours
         non_traites = db.execute("""
-            SELECT COUNT(*) FROM signalements
-            WHERE statut = 'nouveau'
-              AND date_creation <= datetime('now', '-7 days')
+            SELECT COUNT(*)
+            FROM signalements
+            WHERE statut IN ('nouveau', 'en cours')
+              AND datetime(date_creation) <= datetime('now', '-7 days')
         """).fetchone()[0]
 
+        # 4. Évolution hebdomadaire des signalements
         evolution = db.execute("""
             SELECT strftime('%Y-%W', date_creation) AS semaine,
                    COUNT(*) AS total
             FROM signalements
             WHERE statut != 'rejeté'
-            GROUP BY semaine
+            GROUP BY strftime('%Y-%W', date_creation)
             ORDER BY semaine
         """).fetchall()
 
+        # 5. Délai de résolution par service.
+        # On retient la première intervention qui marque le signalement
+        # comme résolu, pour ne compter chaque signalement qu'une fois.
         delais = db.execute("""
-            SELECT c.service_responsable AS service,
-                   ROUND(AVG(
-                       julianday(i.date_intervention) -
-                       julianday(s.date_creation)
-                   ), 2) AS delai_moyen_jours
-            FROM signalements s
+            WITH premieres_resolutions AS (
+                SELECT
+                    i.signalement_id,
+                    MIN(datetime(i.date_intervention)) AS date_resolution
+                FROM interventions i
+                WHERE i.nouveau_statut = 'résolu'
+                GROUP BY i.signalement_id
+            )
+            SELECT
+                c.service_responsable AS service,
+                ROUND(
+                    AVG(
+                        julianday(pr.date_resolution) -
+                        julianday(s.date_creation)
+                    ),
+                    2
+                ) AS delai_moyen_jours,
+                COUNT(s.id) AS signalements_resolus
+            FROM premieres_resolutions pr
+            JOIN signalements s ON s.id = pr.signalement_id
             JOIN categories c ON c.id = s.categorie_id
-            JOIN interventions i ON i.signalement_id = s.id
-            WHERE i.nouveau_statut = 'résolu'
             GROUP BY c.service_responsable
+            ORDER BY c.service_responsable
         """).fetchall()
 
     return jsonify({
-        "signalements_par_categorie": [dict(r) for r in par_categorie],
-        "signalements_par_quartier": [dict(r) for r in par_quartier],
+        "signalements_par_categorie": [
+            dict(r) for r in par_categorie
+        ],
+        "signalements_par_quartier": [
+            dict(r) for r in par_quartier
+        ],
         "signalements_nouveaux_non_traites_depuis_7_jours": non_traites,
-        "evolution_hebdomadaire": [dict(r) for r in evolution],
-        "delai_moyen_resolution_par_service": [dict(r) for r in delais]
+        "evolution_hebdomadaire": [
+            dict(r) for r in evolution
+        ],
+        "delai_moyen_resolution_par_service": [
+            dict(r) for r in delais
+        ]
     })
+
+
+@app.route("/api/signalements")
+def api_signalements():
+    with get_db() as db:
+        signalements = db.execute("""
+            SELECT
+                s.id,
+                s.description,
+                s.adresse,
+                s.date_creation,
+                s.statut,
+                s.code_suivi,
+                c.nom AS categorie,
+                q.nom AS quartier
+            FROM signalements s
+            JOIN categories c ON c.id = s.categorie_id
+            JOIN quartiers q ON q.id = s.quartier_id
+            WHERE s.statut != 'rejeté'
+            ORDER BY s.date_creation DESC
+            LIMIT 50
+        """).fetchall()
+
+    return jsonify({
+        "total": len(signalements),
+        "signalements": [dict(s) for s in signalements]
+    })
+
+
+@app.route("/api/carte-signalements", methods=["GET"])
+def api_carte_signalements():
+    with get_db() as db:
+        lignes = db.execute("""
+            SELECT
+                s.id,
+                s.description,
+                s.adresse,
+                s.latitude,
+                s.longitude,
+                s.date_creation,
+                s.statut,
+                c.nom AS categorie,
+                q.nom AS quartier
+            FROM signalements s
+            JOIN categories c ON c.id = s.categorie_id
+            JOIN quartiers q ON q.id = s.quartier_id
+            WHERE s.latitude IS NOT NULL
+              AND s.longitude IS NOT NULL
+              AND s.latitude BETWEEN -90 AND 90
+              AND s.longitude BETWEEN -180 AND 180
+              AND s.statut != 'rejeté'
+            ORDER BY s.date_creation DESC
+        """).fetchall()
+
+    signalements = [
+        {
+            "id": ligne["id"],
+            "description": ligne["description"],
+            "adresse": ligne["adresse"],
+            "latitude": ligne["latitude"],
+            "longitude": ligne["longitude"],
+            "date_creation": ligne["date_creation"],
+            "statut": ligne["statut"],
+            "categorie": ligne["categorie"],
+            "quartier": ligne["quartier"]
+        }
+        for ligne in lignes
+    ]
+
+    return jsonify(signalements)
+
+
+@app.route("/carte")
+def carte_signalements():
+    return render_template("carte.html")
 
 
 if __name__ == "__main__":

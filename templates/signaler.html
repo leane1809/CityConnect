@@ -1,6 +1,8 @@
 
 {% extends "base.html" %}
+
 {% block title %}Signaler un problème — VilleSignal{% endblock %}
+
 {% block content %}
 <section class="form-card">
     <p class="eyebrow">PARTICIPATION CITOYENNE</p>
@@ -9,11 +11,15 @@
 
     <form method="post" enctype="multipart/form-data" id="reportForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
         <label for="categorie_id">Catégorie *</label>
         <select name="categorie_id" id="categorie_id" required>
             <option value="">Choisir une catégorie</option>
             {% for c in categories %}
-                <option value="{{ c.id }}" {% if request.form.get('categorie_id') == c.id|string %}selected{% endif %}>{{ c.nom }}</option>
+                <option value="{{ c.id }}"
+                    {% if request.form.get('categorie_id') == c.id|string %}selected{% endif %}>
+                    {{ c.nom }}
+                </option>
             {% endfor %}
         </select>
 
@@ -21,21 +27,87 @@
         <select name="quartier_id" id="quartier_id" required>
             <option value="">Choisir un quartier</option>
             {% for q in quartiers %}
-                <option value="{{ q.id }}" {% if request.form.get('quartier_id') == q.id|string %}selected{% endif %}>{{ q.nom }}</option>
+                <option value="{{ q.id }}"
+                    {% if request.form.get('quartier_id') == q.id|string %}selected{% endif %}>
+                    {{ q.nom }}
+                </option>
             {% endfor %}
         </select>
 
         <label for="adresse">Adresse ou repère précis *</label>
-        <input name="adresse" id="adresse" maxlength="200" required value="{{ request.form.get('adresse', '') }}" placeholder="Ex. près du marché...">
+        <input
+            name="adresse"
+            id="adresse"
+            maxlength="200"
+            required
+            value="{{ request.form.get('adresse', '') }}"
+            placeholder="Ex. près du marché..."
+        >
 
-        <label for="description">Description du problème * <span id="counter">0/20 minimum</span></label>
-        <textarea name="description" id="description" minlength="20" maxlength="3000" rows="5" required placeholder="Expliquez le problème, son emplacement et ses conséquences...">{{ request.form.get('description', '') }}</textarea>
+        <label>Position sur la carte (facultatif)</label>
+        <p class="map-help">
+            Clique sur la carte pour marquer l'endroit du problème.
+            Tu peux déplacer le repère en cliquant ailleurs.
+        </p>
+
+        <div id="reportMap"
+             role="application"
+             aria-label="Carte permettant de choisir la position du signalement"
+             style="height: 350px; width: 100%; border-radius: 12px; margin: 12px 0;">
+        </div>
+
+        <input
+            type="hidden"
+            name="latitude"
+            id="latitude"
+            value="{{ request.form.get('latitude', '') }}"
+        >
+        <input
+            type="hidden"
+            name="longitude"
+            id="longitude"
+            value="{{ request.form.get('longitude', '') }}"
+        >
+
+        <p id="coordinatesText" aria-live="polite">
+            Aucune position sélectionnée.
+        </p>
+        <button type="button" class="button" id="clearPosition">
+            Effacer la position
+        </button>
+
+        <label for="description">
+            Description du problème *
+            <span id="counter">0/20 minimum</span>
+        </label>
+        <textarea
+            name="description"
+            id="description"
+            minlength="20"
+            maxlength="3000"
+            rows="5"
+            required
+            placeholder="Explique le problème, son emplacement et ses conséquences..."
+        >{{ request.form.get('description', '') }}</textarea>
 
         <label for="telephone">Téléphone du citoyen *</label>
-        <input name="telephone" id="telephone" type="tel" maxlength="25" required value="{{ request.form.get('telephone', '') }}" placeholder="+237 6XX XXX XXX">
+        <input
+            name="telephone"
+            id="telephone"
+            type="tel"
+            maxlength="25"
+            required
+            value="{{ request.form.get('telephone', '') }}"
+            placeholder="+237 6XX XXX XXX"
+        >
 
         <label for="photo">Photo (JPG, JPEG ou PNG ; moins de 2 Mo)</label>
-        <input type="file" name="photo" id="photo" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+        <input
+            type="file"
+            name="photo"
+            id="photo"
+            accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+        >
         <img id="preview" class="preview" alt="Aperçu de la photo" hidden>
         <p id="photoError" class="field-error" role="alert"></p>
 
@@ -43,7 +115,21 @@
     </form>
 </section>
 {% endblock %}
+
 {% block scripts %}
+<link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+>
+
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+></script>
+
 <script>
 const description = document.getElementById("description");
 const counter = document.getElementById("counter");
@@ -55,8 +141,72 @@ function updateCounter() {
     counter.textContent = `${description.value.trim().length}/20 minimum`;
     counter.classList.toggle("valid", description.value.trim().length >= 20);
 }
+
 description.addEventListener("input", updateCounter);
 updateCounter();
+
+// Carte interactive centrée sur Douala.
+// Le centre est un point de départ, pas la position exacte du citoyen.
+const map = L.map("reportMap").setView([4.0511, 9.7679], 12);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+
+const latitudeInput = document.getElementById("latitude");
+const longitudeInput = document.getElementById("longitude");
+const coordinatesText = document.getElementById("coordinatesText");
+const clearPositionButton = document.getElementById("clearPosition");
+
+let marker = null;
+
+function afficherPosition(lat, lng) {
+    latitudeInput.value = lat.toFixed(7);
+    longitudeInput.value = lng.toFixed(7);
+
+    coordinatesText.textContent =
+        `Position choisie : ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+    if (marker) {
+        marker.setLatLng([lat, lng]);
+    } else {
+        marker = L.marker([lat, lng]).addTo(map);
+    }
+
+    marker.bindPopup("Emplacement du problème").openPopup();
+}
+
+map.on("click", function (event) {
+    afficherPosition(event.latlng.lat, event.latlng.lng);
+});
+
+clearPositionButton.addEventListener("click", function () {
+    latitudeInput.value = "";
+    longitudeInput.value = "";
+    coordinatesText.textContent = "Aucune position sélectionnée.";
+
+    if (marker) {
+        map.removeLayer(marker);
+        marker = null;
+    }
+});
+
+// Restaurer le repère si le formulaire revient après une erreur.
+const ancienneLatitude = Number(latitudeInput.value);
+const ancienneLongitude = Number(longitudeInput.value);
+
+if (
+    latitudeInput.value !== "" &&
+    longitudeInput.value !== "" &&
+    Number.isFinite(ancienneLatitude) &&
+    Number.isFinite(ancienneLongitude) &&
+    ancienneLatitude >= -90 && ancienneLatitude <= 90 &&
+    ancienneLongitude >= -180 && ancienneLongitude <= 180
+) {
+    afficherPosition(ancienneLatitude, ancienneLongitude);
+    map.setView([ancienneLatitude, ancienneLongitude], 16);
+}
 
 photo.addEventListener("change", () => {
     preview.hidden = true;
@@ -67,12 +217,16 @@ photo.addEventListener("change", () => {
     if (!file) return;
 
     const allowed = ["image/jpeg", "image/png"];
-    if (!allowed.includes(file.type) ||
-        !/\.(jpe?g|png)$/i.test(file.name)) {
+
+    if (
+        !allowed.includes(file.type) ||
+        !/\.(jpe?g|png)$/i.test(file.name)
+    ) {
         photoError.textContent = "Choisis une image JPG, JPEG ou PNG.";
         photo.value = "";
         return;
     }
+
     if (file.size > 2 * 1024 * 1024) {
         photoError.textContent = "La photo doit faire moins de 2 Mo.";
         photo.value = "";
@@ -86,7 +240,9 @@ photo.addEventListener("change", () => {
 document.getElementById("reportForm").addEventListener("submit", (event) => {
     if (description.value.trim().length < 20) {
         event.preventDefault();
-        description.setCustomValidity("La description doit contenir au moins 20 caractères.");
+        description.setCustomValidity(
+            "La description doit contenir au moins 20 caractères."
+        );
         description.reportValidity();
     } else {
         description.setCustomValidity("");
