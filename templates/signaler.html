@@ -1,119 +1,151 @@
-
 {% extends "base.html" %}
 
 {% block title %}Signaler un problème — VilleSignal{% endblock %}
+{% block body_class %}form-page{% endblock %}
 
 {% block content %}
-<section class="form-card">
-    <p class="eyebrow">PARTICIPATION CITOYENNE</p>
-    <h1>Signaler un problème urbain</h1>
-    <p>Décris clairement le problème. Les champs marqués * sont obligatoires.</p>
+<div class="form-stage">
+    <span class="bubble b1"></span><span class="bubble b2"></span><span class="bubble b3"></span>
+    <span class="bubble b4"></span><span class="bubble b5"></span>
 
-    <form method="post" enctype="multipart/form-data" id="reportForm">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <section class="form-card">
+        <div class="card-corner">Déjà un signalement ? <a href="{{ url_for('suivi') }}">Suivre</a></div>
+        <div class="eyebrow-wrap"><span class="eyebrow">PARTICIPATION CITOYENNE</span></div>
+        <h1>Signaler un problème urbain</h1>
+        <p class="intro">Décris clairement le problème. Les champs marqués * sont obligatoires.</p>
 
-        <label for="categorie_id">Catégorie *</label>
-        <select name="categorie_id" id="categorie_id" required>
-            <option value="">Choisir une catégorie</option>
-            {% for c in categories %}
-                <option value="{{ c.id }}"
-                    {% if request.form.get('categorie_id') == c.id|string %}selected{% endif %}>
-                    {{ c.nom }}
-                </option>
-            {% endfor %}
-        </select>
-
-        <label for="quartier_id">Quartier *</label>
-        <select name="quartier_id" id="quartier_id" required>
-            <option value="">Choisir un quartier</option>
-            {% for q in quartiers %}
-                <option value="{{ q.id }}"
-                    {% if request.form.get('quartier_id') == q.id|string %}selected{% endif %}>
-                    {{ q.nom }}
-                </option>
-            {% endfor %}
-        </select>
-
-        <label for="adresse">Adresse ou repère précis *</label>
-        <input
-            name="adresse"
-            id="adresse"
-            maxlength="200"
-            required
-            value="{{ request.form.get('adresse', '') }}"
-            placeholder="Ex. près du marché..."
-        >
-
-        <label>Position sur la carte (facultatif)</label>
-        <p class="map-help">
-            Clique sur la carte pour marquer l'endroit du problème.
-            Tu peux déplacer le repère en cliquant ailleurs.
-        </p>
-
-        <div id="reportMap"
-             role="application"
-             aria-label="Carte permettant de choisir la position du signalement"
-             style="height: 350px; width: 100%; border-radius: 12px; margin: 12px 0;">
+        <!-- Stepper -->
+        <div class="stepper" id="stepper" aria-label="Progression du formulaire">
+            <div class="s active"><i>1</i>Le problème</div>
+            <div class="line"></div>
+            <div class="s"><i>2</i>Localisation</div>
+            <div class="line"></div>
+            <div class="s"><i>3</i>Détails &amp; envoi</div>
         </div>
 
-        <input
-            type="hidden"
-            name="latitude"
-            id="latitude"
-            value="{{ request.form.get('latitude', '') }}"
-        >
-        <input
-            type="hidden"
-            name="longitude"
-            id="longitude"
-            value="{{ request.form.get('longitude', '') }}"
-        >
+        <form method="post" enctype="multipart/form-data" id="reportForm" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <p id="coordinatesText" aria-live="polite">
-            Aucune position sélectionnée.
-        </p>
-        <button type="button" class="button" id="clearPosition">
-            Effacer la position
-        </button>
+            <!-- ÉTAPE 1 -->
+            <div class="form-step active" data-step="1">
+                <h2>Le problème</h2>
 
-        <label for="description">
-            Description du problème *
-            <span id="counter">0/20 minimum</span>
-        </label>
-        <textarea
-            name="description"
-            id="description"
-            minlength="20"
-            maxlength="3000"
-            rows="5"
-            required
-            placeholder="Explique le problème, son emplacement et ses conséquences..."
-        >{{ request.form.get('description', '') }}</textarea>
+                <label for="categorie_id">Catégorie *</label>
+                <select name="categorie_id" id="categorie_id" required>
+                    <option value="">Choisir une catégorie</option>
+                    {% for c in categories %}
+                        <option value="{{ c.id }}"
+                            {% if request.form.get('categorie_id') == c.id|string %}selected{% endif %}>
+                            {{ c.nom }}
+                        </option>
+                    {% endfor %}
+                </select>
 
-        <label for="telephone">Téléphone du citoyen *</label>
-        <input
-            name="telephone"
-            id="telephone"
-            type="tel"
-            maxlength="25"
-            required
-            value="{{ request.form.get('telephone', '') }}"
-            placeholder="+237 6XX XXX XXX"
-        >
+                <label for="quartier_id">Quartier *</label>
+                <select name="quartier_id" id="quartier_id" required>
+                    <option value="">Choisir un quartier</option>
+                    {% for q in quartiers %}
+                        <option value="{{ q.id }}"
+                            {% if request.form.get('quartier_id') == q.id|string %}selected{% endif %}>
+                            {{ q.nom }}
+                        </option>
+                    {% endfor %}
+                </select>
 
-        <label for="photo">Photo (JPG, JPEG ou PNG ; moins de 2 Mo)</label>
-        <input
-            type="file"
-            name="photo"
-            id="photo"
-            accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-        >
-        <img id="preview" class="preview" alt="Aperçu de la photo" hidden>
-        <p id="photoError" class="field-error" role="alert"></p>
+                <label for="adresse">Adresse ou repère précis *</label>
+                <input
+                    name="adresse"
+                    id="adresse"
+                    maxlength="200"
+                    required
+                    value="{{ request.form.get('adresse', '') }}"
+                    placeholder="Ex. près du marché..."
+                >
+            </div>
 
-        <button class="button" type="submit">Envoyer le signalement</button>
-    </form>
-</section>
+            <!-- ÉTAPE 2 -->
+            <div class="form-step" data-step="2">
+                <h2>Position sur la carte <small style="color:var(--muted);font-weight:500;">(facultatif)</small></h2>
+                <p class="map-help">
+                    Clique sur la carte pour marquer l'endroit du problème.
+                    Tu peux déplacer le repère en cliquant ailleurs.
+                </p>
+
+                <div id="reportMap"
+                     role="application"
+                     aria-label="Carte permettant de choisir la position du signalement"
+                     style="height: 350px; width: 100%; border-radius: 18px; margin: 12px 0;">
+                </div>
+
+                <input type="hidden" name="latitude" id="latitude" value="{{ request.form.get('latitude', '') }}">
+                <input type="hidden" name="longitude" id="longitude" value="{{ request.form.get('longitude', '') }}">
+
+                <p id="coordinatesText" aria-live="polite">Aucune position sélectionnée.</p>
+
+                <div class="location-tools">
+                    <button type="button" class="button small" id="locateMe">🎯 Ma position</button>
+                    <button type="button" class="button small secondary" id="clearPosition">Effacer la position</button>
+                </div>
+            </div>
+
+            <!-- ÉTAPE 3 -->
+            <div class="form-step" data-step="3">
+                <h2>Détails &amp; envoi</h2>
+
+                <label for="description">
+                    Description du problème *
+                    <span id="counter">0/20 minimum</span>
+                </label>
+                <textarea
+                    name="description"
+                    id="description"
+                    minlength="20"
+                    maxlength="3000"
+                    rows="5"
+                    required
+                    placeholder="Explique le problème, son emplacement et ses conséquences..."
+                >{{ request.form.get('description', '') }}</textarea>
+
+                <label for="telephone">Téléphone du citoyen *</label>
+                <input
+                    name="telephone"
+                    id="telephone"
+                    type="tel"
+                    maxlength="25"
+                    required
+                    value="{{ request.form.get('telephone', '') }}"
+                    placeholder="+237 6XX XXX XXX"
+                >
+
+                <label for="photo">Photo (JPG, JPEG ou PNG ; moins de 2 Mo)</label>
+                <div class="photo-drop">
+                    <label for="photo" class="photo-btn">
+                        <span class="circle">📷</span>
+                        Ajouter une photo
+                    </label>
+                    <input
+                        type="file"
+                        name="photo"
+                        id="photo"
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    >
+                    <img id="preview" class="preview" alt="Aperçu de la photo" hidden>
+                </div>
+                <p id="photoError" class="field-error" role="alert"></p>
+
+                <div class="summary" id="summary" aria-live="polite"></div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="form-nav">
+                <button type="button" class="btn-link" id="prevBtn" hidden>← Retour</button>
+                <span class="spacer"></span>
+                <button type="button" class="button" id="nextBtn">Continuer →</button>
+                <button class="button gold" type="submit" id="submitBtn" hidden>✔ Envoyer le signalement</button>
+            </div>
+        </form>
+    </section>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -166,7 +198,7 @@ function afficherPosition(lat, lng) {
     longitudeInput.value = lng.toFixed(7);
 
     coordinatesText.textContent =
-        `Position choisie : ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        `📍 Position choisie : ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
     if (marker) {
         marker.setLatLng([lat, lng]);
@@ -190,6 +222,23 @@ clearPositionButton.addEventListener("click", function () {
         map.removeLayer(marker);
         marker = null;
     }
+});
+
+// Bouton « Ma position » (géolocalisation du navigateur)
+document.getElementById("locateMe").addEventListener("click", function () {
+    if (!navigator.geolocation) {
+        coordinatesText.textContent = "La géolocalisation n'est pas disponible sur cet appareil.";
+        return;
+    }
+    coordinatesText.textContent = "Recherche de ta position…";
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            afficherPosition(pos.coords.latitude, pos.coords.longitude);
+            map.setView([pos.coords.latitude, pos.coords.longitude], 17);
+        },
+        () => { coordinatesText.textContent = "Impossible d'obtenir ta position. Clique sur la carte à la place."; },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
 });
 
 // Restaurer le repère si le formulaire revient après une erreur.
@@ -237,16 +286,100 @@ photo.addEventListener("change", () => {
     preview.hidden = false;
 });
 
-document.getElementById("reportForm").addEventListener("submit", (event) => {
-    if (description.value.trim().length < 20) {
-        event.preventDefault();
-        description.setCustomValidity(
-            "La description doit contenir au moins 20 caractères."
-        );
-        description.reportValidity();
-    } else {
-        description.setCustomValidity("");
+/* ---------- Formulaire en 3 étapes ---------- */
+const form = document.getElementById("reportForm");
+const steps = [...document.querySelectorAll(".form-step")];
+const stepperItems = [...document.querySelectorAll("#stepper .s")];
+const stepperLines = [...document.querySelectorAll("#stepper .line")];
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const submitBtn = document.getElementById("submitBtn");
+let current = 0;
+
+function showStep(index) {
+    current = index;
+    steps.forEach((s, i) => s.classList.toggle("active", i === current));
+    stepperItems.forEach((item, i) => {
+        item.classList.toggle("active", i === current);
+        item.classList.toggle("done", i < current);
+        item.querySelector("i").textContent = i < current ? "✓" : i + 1;
+    });
+    stepperLines.forEach((l, i) => l.classList.toggle("done", i < current));
+    prevBtn.hidden = current === 0;
+    nextBtn.hidden = current === steps.length - 1;
+    submitBtn.hidden = current !== steps.length - 1;
+
+    if (current === 1) setTimeout(() => map.invalidateSize(), 120);
+    if (current === 2) buildSummary();
+    document.querySelector(".form-card").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function validateStep(index) {
+    const fields = steps[index].querySelectorAll("input, select, textarea");
+    for (const field of fields) {
+        if (field.type === "hidden" || field.type === "file") continue;
+        if (field.id === "description" && field.value.trim().length < 20) {
+            field.setCustomValidity("La description doit contenir au moins 20 caractères.");
+        } else if (field.id === "description") {
+            field.setCustomValidity("");
+        }
+        if (!field.checkValidity()) {
+            field.reportValidity();
+            return false;
+        }
+    }
+    return true;
+}
+
+function buildSummary() {
+    const cat = document.getElementById("categorie_id");
+    const quart = document.getElementById("quartier_id");
+    const adr = document.getElementById("adresse").value.trim();
+    const pos = latitudeInput.value ? "position enregistrée" : "pas de position";
+    const box = document.getElementById("summary");
+    box.textContent = "";
+    const parts = [
+        ["Catégorie", cat.options[cat.selectedIndex]?.text.trim()],
+        ["Quartier", quart.options[quart.selectedIndex]?.text.trim()],
+        ["Adresse", adr],
+        ["Carte", pos]
+    ];
+    parts.forEach(([k, v], i) => {
+        const b = document.createElement("b");
+        b.textContent = k + " : ";
+        box.appendChild(b);
+        box.appendChild(document.createTextNode(v || "—"));
+        if (i < parts.length - 1) box.appendChild(document.createTextNode("  ·  "));
+    });
+}
+
+nextBtn.addEventListener("click", () => {
+    if (validateStep(current)) showStep(current + 1);
+});
+prevBtn.addEventListener("click", () => showStep(current - 1));
+
+// Entrée dans un champ = étape suivante (sauf dans le champ description)
+form.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.tagName !== "TEXTAREA" && current < steps.length - 1) {
+        e.preventDefault();
+        nextBtn.click();
     }
 });
+
+description.addEventListener("input", () => description.setCustomValidity(""));
+
+form.addEventListener("submit", (event) => {
+    // Revalide toutes les étapes avant l'envoi
+    for (let i = 0; i < steps.length; i++) {
+        if (!validateStep(i)) {
+            event.preventDefault();
+            showStep(i);
+            validateStep(i);
+            return;
+        }
+    }
+});
+
+showStep(0);
 </script>
 {% endblock %}

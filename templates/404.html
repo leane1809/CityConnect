@@ -1,10 +1,16 @@
-
 {% extends "base.html" %}
 {% block title %}Page introuvable — VilleSignal{% endblock %}
+{% block body_class %}form-page{% endblock %}
 {% block content %}
-<section class="form-card narrow">
-    <h1>Erreur 404</h1>
-    <p>La page demandée n'existe pas ou le signalement n'est pas accessible.</p>
-    <a class="button" href="{{ url_for('accueil') }}">Retour à l'accueil</a>
-</section>
+<div class="form-stage">
+    <span class="bubble b1"></span><span class="bubble b2"></span><span class="bubble b3"></span>
+    <span class="bubble b4"></span><span class="bubble b5"></span>
+
+    <section class="form-card narrow" style="text-align:center;">
+        <p class="error-code">404</p>
+        <h1>Page introuvable</h1>
+        <p class="intro">La page demandée n'existe pas ou le signalement n'est pas accessible.</p>
+        <a class="button" href="{{ url_for('accueil') }}">← Retour à l'accueil</a>
+    </section>
+</div>
 {% endblock %}

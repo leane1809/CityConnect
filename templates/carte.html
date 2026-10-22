@@ -1,62 +1,67 @@
-
 {% extends "base.html" %}
 
 {% block title %}Carte des signalements — VilleSignal{% endblock %}
+{% block body_class %}form-page{% endblock %}
 
 {% block content %}
-<section class="form-card">
-    <p class="eyebrow">SUIVI CITOYEN</p>
-    <h1>Carte des signalements</h1>
-    <p>
-        Explore les problèmes urbains signalés et consulte leur emplacement,
-        leur catégorie et leur état de traitement.
-    </p>
+<div class="form-stage">
+    <span class="bubble b1"></span><span class="bubble b2"></span><span class="bubble b3"></span>
+    <span class="bubble b4"></span><span class="bubble b5"></span>
 
-    <div class="map-filters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:20px 0;">
-        <div>
-            <label for="filtreCategorie">Catégorie</label>
-            <select id="filtreCategorie">
-                <option value="">Toutes les catégories</option>
-            </select>
+    <section class="form-card wide">
+        <div class="eyebrow-wrap"><span class="eyebrow">SUIVI CITOYEN</span></div>
+        <h1>Carte des signalements</h1>
+        <p class="intro">
+            Explore les problèmes urbains signalés et consulte leur emplacement,
+            leur catégorie et leur état de traitement.
+        </p>
+
+        <div class="map-filters">
+            <div>
+                <label for="filtreCategorie">Catégorie</label>
+                <select id="filtreCategorie">
+                    <option value="">Toutes les catégories</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="filtreQuartier">Quartier</label>
+                <select id="filtreQuartier">
+                    <option value="">Tous les quartiers</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="filtreStatut">Statut</label>
+                <select id="filtreStatut">
+                    <option value="">Tous les statuts</option>
+                    <option value="nouveau">Nouveau</option>
+                    <option value="en cours">En cours</option>
+                    <option value="résolu">Résolu</option>
+                </select>
+            </div>
         </div>
 
-        <div>
-            <label for="filtreQuartier">Quartier</label>
-            <select id="filtreQuartier">
-                <option value="">Tous les quartiers</option>
-            </select>
+        <p id="mapMessage" role="status" aria-live="polite" class="map-help">
+            Chargement des signalements...
+        </p>
+
+        <div id="publicMap"
+             role="application"
+             aria-label="Carte des signalements urbains"
+             style="height:480px;width:100%;border-radius:18px;margin:16px 0;">
         </div>
 
-        <div>
-            <label for="filtreStatut">Statut</label>
-            <select id="filtreStatut">
-                <option value="">Tous les statuts</option>
-                <option value="nouveau">Nouveau</option>
-                <option value="en cours">En cours</option>
-                <option value="résolu">Résolu</option>
-            </select>
+        <p id="mapCount">0 signalement affiché</p>
+
+        <div class="legend">
+            <strong>Légende :</strong>
+            <span>🔵 Nouveau</span>
+            <span>🟠 En cours</span>
+            <span>🟢 Résolu</span>
         </div>
-    </div>
-
-    <p id="mapMessage" role="status" aria-live="polite">
-        Chargement des signalements...
-    </p>
-
-    <div id="publicMap"
-         role="application"
-         aria-label="Carte des signalements urbains"
-         style="height:480px;width:100%;border-radius:12px;margin:16px 0;">
-    </div>
-
-    <p id="mapCount">0 signalement affiché</p>
-
-    <div>
-        <strong>Légende :</strong>
-        <span style="margin-left:10px;">🔵 Nouveau</span>
-        <span style="margin-left:10px;">🟠 En cours</span>
-        <span style="margin-left:10px;">🟢 Résolu</span>
-    </div>
-</section>
+    </section>
+</div>
 {% endblock %}
 
 {% block scripts %}

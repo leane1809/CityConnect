@@ -1,18 +1,21 @@
-
 {% extends "base.html" %}
 {% block title %}Espace agent — VilleSignal{% endblock %}
 {% block content %}
-<h1>Tableau de bord agent</h1>
-<p>Bienvenue {{ session.get('agent_nom') }} — Service : {{ session.get('agent_service') }}</p>
-<p>Les signalements affichés ci-dessous concernent ton service.</p>
+<section class="admin-hero">
+    <div>
+        <h1>Tableau de bord agent</h1>
+        <p>Bienvenue {{ session.get('agent_nom') }} — les signalements ci-dessous concernent ton service.</p>
+    </div>
+    <span class="admin-chip">🏢 Service : {{ session.get('agent_service') }}</span>
+</section>
 
 {% if signalements %}
     <div class="report-grid">
     {% for s in signalements %}
         <article class="report-card">
             <div class="card-top">
-                <span class="tag">{{ s.categorie }}</span>
-                <span class="status">{{ s.statut }}</span>
+                <span class="tag">🏷️ {{ s.categorie }}</span>
+                <span class="status" data-status="{{ s.statut }}">{{ s.statut }}</span>
             </div>
             <h3>{{ s.quartier }} — {{ s.adresse }}</h3>
             <p>{{ s.description }}</p>
@@ -21,7 +24,7 @@
             <form method="post" action="{{ url_for('ajouter_intervention', signalement_id=s.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label for="commentaire-{{ s.id }}">Commentaire d'intervention</label>
-                <textarea id="commentaire-{{ s.id }}" name="commentaire" rows="3" required></textarea>
+                <textarea id="commentaire-{{ s.id }}" name="commentaire" rows="3" required placeholder="Décris l'action menée…"></textarea>
 
                 <label for="statut-{{ s.id }}">Nouveau statut</label>
                 <select id="statut-{{ s.id }}" name="nouveau_statut" required>
@@ -31,8 +34,8 @@
                 </select>
 
                 <label for="motif-{{ s.id }}">Motif du rejet (obligatoire en cas de rejet)</label>
-                <input id="motif-{{ s.id }}" name="motif_rejet" maxlength="500">
-                <button class="button" type="submit">Enregistrer l'intervention</button>
+                <input id="motif-{{ s.id }}" name="motif_rejet" maxlength="500" placeholder="Uniquement si rejeté">
+                <button class="button block" type="submit">Enregistrer l'intervention</button>
             </form>
         </article>
     {% endfor %}

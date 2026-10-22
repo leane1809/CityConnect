@@ -1,17 +1,39 @@
-
 {% extends "base.html" %}
 {% block title %}Connexion agent — VilleSignal{% endblock %}
+{% block body_class %}form-page{% endblock %}
 {% block content %}
-<section class="form-card narrow">
-    <h1>Espace agent</h1>
-    <p>Connecte-toi avec les identifiants de démonstration ou ceux qui t'ont été attribués.</p>
-    <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label for="login">Identifiant</label>
-        <input id="login" name="login" autocomplete="username" required>
-        <label for="mot_de_passe">Mot de passe</label>
-        <input id="mot_de_passe" name="mot_de_passe" type="password" autocomplete="current-password" required>
-        <button class="button" type="submit">Se connecter</button>
-    </form>
-</section>
+<div class="form-stage">
+    <span class="bubble b1"></span><span class="bubble b2"></span><span class="bubble b3"></span>
+    <span class="bubble b4"></span><span class="bubble b5"></span>
+
+    <section class="form-card narrow">
+        <div class="eyebrow-wrap"><span class="eyebrow">ESPACE PROFESSIONNEL</span></div>
+        <h1>Espace agent</h1>
+        <p class="intro">Connecte-toi avec les identifiants de démonstration ou ceux qui t'ont été attribués.</p>
+
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <label for="login">Identifiant</label>
+            <input id="login" name="login" autocomplete="username" required placeholder="Ton identifiant">
+
+            <label for="mot_de_passe">Mot de passe</label>
+            <input id="mot_de_passe" name="mot_de_passe" type="password" autocomplete="current-password" required placeholder="••••••••">
+
+            <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;">
+                <input type="checkbox" id="showPwd" style="width:auto;accent-color:#4a6a23;"> Afficher le mot de passe
+            </label>
+
+            <button class="button block" type="submit">Se connecter</button>
+        </form>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("showPwd").addEventListener("change", function () {
+    document.getElementById("mot_de_passe").type = this.checked ? "text" : "password";
+});
+</script>
 {% endblock %}
