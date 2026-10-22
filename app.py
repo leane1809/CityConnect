@@ -1,11 +1,14 @@
 
 import os
+from flask_wtf.csrf import CSRFProtect
 import re
 import secrets
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from functools import wraps
+from uuid import uuid4
+from PIL import Image, UnidentifiedImageError
 
 from flask import (
     Flask, render_template, request, redirect,
@@ -21,6 +24,14 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 MAX_PHOTO_SIZE = 2 * 1024 * 1024
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = os.environ.get(
+    "SECRET_KEY",
+    "cle-de-developpement-a-remplacer"
+)
+
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
+
+csrf = CSRFProtect(app)
 app.config["SECRET_KEY"] = os.environ.get(
     "FLASK_SECRET_KEY", secrets.token_hex(32)
 )
@@ -61,6 +72,68 @@ def fichier_trop_volumineux(error):
     flash("La requête est trop volumineuse. La photo doit faire moins de 2 Mo.", "danger")
     return redirect(url_for("signaler"))
 
+EXTENSIONS_AUTORISEES = {"jpg", "jpeg", "png"}
+FORMATS_IMAGE_AUTORISES = {"JPEG", "PNG"}
+
+
+def enregistrer_photo(fichier):
+    """
+    Vérifie le contenu réel de l'image puis l'enregistre
+    sous un nom généré par le serveur.
+    Retourne le nom du fichier ou None si aucune photo n'est fournie.
+    """
+    if not fichier or not fichier.filename:
+        return None
+
+    nom_original = fichier.filename.strip()
+
+    if "." not in nom_original:
+        raise ValueError("Le fichier doit être une image JPG, JPEG ou PNG.")
+
+    extension = nom_original.rsplit(".", 1)[1].lower()
+
+    if extension not in EXTENSIONS_AUTORISEES:
+        raise ValueError("Seuls les fichiers JPG, JPEG et PNG sont autorisés.")
+
+    contenu = fichier.stream
+
+    
+
+    try:
+        contenu.seek(0)
+
+        with Image.open(contenu) as image:
+            format_reel = image.format
+
+            if format_reel not in FORMATS_IMAGE_AUTORISES:
+                raise ValueError("Le contenu du fichier n'est pas une image JPG ou PNG.")
+
+            image.verify()
+
+        contenu.seek(0)
+
+        with Image.open(contenu) as image:
+            if image.format != format_reel:
+                raise ValueError("Le contenu du fichier est incohérent.")
+
+    except (UnidentifiedImageError, OSError) as erreur:
+        raise ValueError("Le fichier envoyé est une image invalide.") from erreur
+    finally:
+        contenu.seek(0)
+
+    dossier_upload = app.config.get(
+        "UPLOAD_FOLDER",
+        os.path.join(app.root_path, "static", "uploads")
+    )
+
+    os.makedirs(dossier_upload, exist_ok=True)
+
+    extension_reelle = "jpg" if format_reel == "JPEG" else "png"
+    nom_securise = f"{uuid4().hex}.{extension_reelle}"
+
+    fichier.save(os.path.join(dossier_upload, nom_securise))
+
+    return nom_securise
 
 @app.route("/")
 def accueil():
@@ -152,25 +225,21 @@ def signaler():
             )
 
         photo_nom = None
-        if photo and photo.filename:
-            extension = Path(secure_filename(photo.filename)).suffix.lower()
 
-            if extension not in ALLOWED_EXTENSIONS:
-                flash("Format interdit : seules les images JPG, JPEG et PNG sont acceptées.", "danger")
-                return render_template(
-                    "signaler.html", categories=categories, quartiers=quartiers
-                )
+        fichier = request.files.get("photo")
 
-            contenu = photo.read(MAX_PHOTO_SIZE + 1)
-            if len(contenu) > MAX_PHOTO_SIZE:
-                flash("La photo doit faire moins de 2 Mo.", "danger")
-                return render_template(
-                    "signaler.html", categories=categories, quartiers=quartiers
-                )
+        if fichier and fichier.filename:
+            if len(fichier.read()) > 2 * 1024 * 1024:
+                flash("La photo ne doit pas dépasser 2 Mo.", "danger")
+                return redirect(url_for("signaler"))
 
-            if contenu:
-                photo_nom = f"{secrets.token_hex(16)}{extension}"
-                (UPLOAD_DIR / photo_nom).write_bytes(contenu)
+        fichier.stream.seek(0)
+
+        try:
+            photo_nom = enregistrer_photo(fichier)
+        except ValueError as erreur:
+            flash(str(erreur), "danger")
+            return redirect(url_for("signaler"))
 
         code_suivi = secrets.token_urlsafe(8).replace("-", "").replace("_", "")[:12].upper()
 

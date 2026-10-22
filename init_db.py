@@ -93,7 +93,7 @@ def initialiser_base():
     print("Catégories : 5")
     print("Quartiers : 12")
     print("Agents de démonstration : 8")
-    print("Attention : les mots de passe de démonstration doivent être changés.")
+    # print("Attention : les mots de passe de démonstration doivent être changés.")
 
 
 if __name__ == "__main__":

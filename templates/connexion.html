@@ -6,6 +6,7 @@
     <h1>Espace agent</h1>
     <p>Connecte-toi avec les identifiants de démonstration ou ceux qui t'ont été attribués.</p>
     <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="login">Identifiant</label>
         <input id="login" name="login" autocomplete="username" required>
         <label for="mot_de_passe">Mot de passe</label>

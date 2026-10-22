@@ -6,6 +6,7 @@
     <h1>Suivre un signalement</h1>
     <p>Entre le code de suivi reçu après l'envoi de ton signalement.</p>
     <form method="post" action="{{ url_for('suivi') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="code_suivi">Code de suivi</label>
         <input id="code_suivi" name="code_suivi" value="{{ code }}" required placeholder="Ex. 7A2B9C3D4E5F">
         <button class="button" type="submit">Rechercher</button>

@@ -19,6 +19,7 @@
             <small>Code : {{ s.code_suivi }} · {{ s.date_creation }}</small>
 
             <form method="post" action="{{ url_for('ajouter_intervention', signalement_id=s.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label for="commentaire-{{ s.id }}">Commentaire d'intervention</label>
                 <textarea id="commentaire-{{ s.id }}" name="commentaire" rows="3" required></textarea>
 

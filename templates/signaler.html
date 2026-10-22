@@ -8,6 +8,7 @@
     <p>Décris clairement le problème. Les champs marqués * sont obligatoires.</p>
 
     <form method="post" enctype="multipart/form-data" id="reportForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="categorie_id">Catégorie *</label>
         <select name="categorie_id" id="categorie_id" required>
             <option value="">Choisir une catégorie</option>
